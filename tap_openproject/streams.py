@@ -1,10 +1,10 @@
 
-# Stream definitions for tap_open_project
+# Stream definitions for tap_openproject
 import json
 import logging
 import os
 import singer
-from tap_open_project.http_client import HttpClient
+from tap_openproject.http_client import HttpClient
 
 logger = logging.getLogger(__name__)
 

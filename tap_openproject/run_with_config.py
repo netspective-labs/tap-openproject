@@ -10,8 +10,8 @@ import sys
 import stat
 from datetime import datetime, timezone
 import singer
-from tap_open_project.http_client import HttpClient
-from tap_open_project.streams import ProjectStream
+from tap_openproject.http_client import HttpClient
+from tap_openproject.streams import ProjectStream
 
 logger = logging.getLogger(__name__)
 

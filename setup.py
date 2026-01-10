@@ -15,7 +15,7 @@ setup(
     license="MIT",
     packages=find_packages(exclude=["tests", "tests.*"]),
     package_data={
-        "tap_open_project": ["schemas/*.json"],
+        "tap_openproject": ["schemas/*.json"],
     },
     install_requires=[
         "requests>=2.28.0",
@@ -25,7 +25,7 @@ setup(
     include_package_data=True,
     entry_points={
         "console_scripts": [
-            "tap-openproject=tap_open_project.run_with_config:main",
+            "tap-openproject=tap_openproject.run_with_config:main",
         ],
     },
     classifiers=[

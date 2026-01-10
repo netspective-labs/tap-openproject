@@ -1,4 +1,4 @@
-# HTTP utilities for tap_open_project
+# HTTP utilities for tap_openproject
 
 import logging
 import time

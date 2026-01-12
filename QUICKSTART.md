@@ -1,89 +1,164 @@
-# Quick Reference: Testing tap_open_project
+# 🚀 Quick Start Guide - SDK Version
 
-## TL;DR - Test in 5 Minutes
+## Installation
 
-### 1. Get Free OpenProject Account
-Visit: https://community.openproject.org/register
-
-### 2. Get Your API Key
-1. Log in → Click avatar → "My account"
-2. Left sidebar → "Access tokens"
-3. Click "Generate" → Copy the key
-
-### 3. Create config.json
 ```bash
-cd singerio-surveilr-poc-github-tap/tap_open_project
-cat > config.json << 'EOF'
+cd /home/avinash/Projects/resource-surveillance/src/tap-openproject
+
+# Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate.fish  # or: source .venv/bin/activate
+
+# Install dependencies
+pip install singer-sdk requests
+
+# Or use Poetry
+pip install poetry
+poetry install
+```
+
+## Basic Usage
+
+### 1. Discovery Mode
+```bash
+# Discover available streams and their schemas
+python -m tap_openproject.tap --discover > catalog.json
+```
+
+### 2. Create Config
+```bash
+cat > config.json << EOF
 {
+  "api_key": "YOUR_OPENPROJECT_API_KEY",
   "base_url": "https://community.openproject.org/api/v3",
-  "api_key": "PASTE_YOUR_KEY_HERE"
+  "start_date": "2024-01-01T00:00:00Z"
 }
 EOF
 ```
 
-### 4. Run the Tap
+### 3. Run Extraction
 ```bash
-cd /path/to/surveilr
-PYTHONPATH=singerio-surveilr-poc-github-tap .venv/bin/python singerio-surveilr-poc-github-tap/tap_open_project/run_with_config.py
+# Full sync
+python -m tap_openproject.tap --config config.json --catalog catalog.json
+
+# With state for incremental sync
+python -m tap_openproject.tap \
+  --config config.json \
+  --catalog catalog.json \
+  --state state.json > output.singer
 ```
 
-## Expected Output
+## Meltano Usage
 
-```json
-{"type": "SCHEMA", "stream": "projects", ...}
-{"type": "RECORD", "stream": "projects", "record": {"id": "...", "name": "...", ...}}
-...
-{"type": "STATE", "value": {"last_sync": "..."}}
-```
-
-## Quick Test with curl
-
+### Add to Meltano Project
 ```bash
-# Test API access (replace YOUR_KEY)
-curl -u apikey:YOUR_KEY https://community.openproject.org/api/v3/projects
+# From local path
+meltano add --custom extractor tap-openproject \
+  --pip_url -e /home/avinash/Projects/resource-surveillance/src/tap-openproject
+
+# From GitHub (after pushing)
+meltano add extractor tap-openproject --variant surveilr
 ```
 
-## File Structure
-
-```
-tap_open_project/
-├── config.json              # Your credentials (create this)
-├── config.json.example      # Template
-├── run_with_config.py       # Main script to test with real API
-├── demo.py                  # Demo with mock data
-├── http_client.py           # Handles OpenProject API calls
-├── streams.py               # Defines data streams
-├── schemas/projects.json    # JSON schema for projects
-├── TESTING.md               # Full testing guide
-└── README.md                # Main documentation
+### Configure
+```bash
+meltano config tap-openproject set api_key YOUR_KEY
+meltano config tap-openproject set base_url https://your-instance.openproject.com/api/v3
 ```
 
-## Common Issues
+### Run
+```bash
+# Discovery
+meltano invoke tap-openproject --discover
 
-**401 Unauthorized**
-- Check API key is correct
-- Username must be "apikey" (not your login name)
+# With target
+meltano run tap-openproject target-jsonl
 
-**No projects returned**
-- OpenProject Community has public projects
-- Check your account has project access
-
-**Module not found**
-- Set PYTHONPATH=singerio-surveilr-poc-github-tap
-- Run from surveilr root directory
-
-## Authentication Details
-
-OpenProject uses Basic Authentication:
-- Username: `apikey` (literal string)
-- Password: Your API key
-
-In Python:
-```python
-from requests.auth import HTTPBasicAuth
-auth = HTTPBasicAuth('apikey', 'your_key_here')
+# Incremental sync (automatic)
+meltano run tap-openproject target-jsonl
 ```
 
-## For More Details
+## Testing & Validation
 
-See [TESTING.md](./TESTING.md) for comprehensive guide.
+### Check Capabilities
+```bash
+python -m tap_openproject.tap --about --format=json
+```
+
+### Verify Catalog
+```bash
+python -m tap_openproject.tap --discover | jq '.streams[] | {name: .tap_stream_id, primary_key: .key_properties, replication_key: .replication_key}'
+```
+
+### Test Extraction (Limited)
+```bash
+python -m tap_openproject.tap --config config.json --catalog catalog.json | head -20
+```
+
+## Configuration Reference
+
+| Setting | Required | Default | Description |
+|---------|----------|---------|-------------|
+| `api_key` | Yes | - | OpenProject API key |
+| `base_url` | Yes | `https://community.openproject.org/api/v3` | API base URL |
+| `timeout` | No | 30 | Request timeout (seconds) |
+| `max_retries` | No | 3 | Max retry attempts |
+| `start_date` | No | - | Filter for incremental sync |
+
+## Available Streams
+
+- **projects**: OpenProject projects with full metadata
+  - Primary key: `id`
+  - Replication key: `updatedAt`
+  - Supports incremental sync: ✅
+
+## Troubleshooting
+
+### Import Error
+```bash
+# Ensure SDK is installed
+pip install singer-sdk requests
+```
+
+### Authentication Error
+```bash
+# Test API key
+curl -u "apikey:YOUR_KEY" https://community.openproject.org/api/v3/projects
+```
+
+### No Output
+```bash
+# Check logs (stderr)
+python -m tap_openproject.tap --config config.json 2>&1 | grep -i error
+```
+
+## Development
+
+### Run Tests
+```bash
+pytest tests/
+```
+
+### Format Code
+```bash
+pip install ruff
+ruff format .
+ruff check --fix .
+```
+
+### Update Schema
+Edit `tap_openproject/streams.py` - the schema is defined inline using Singer SDK types.
+
+## Files Reference
+
+- `tap_openproject/tap.py` - Main Tap class
+- `tap_openproject/streams.py` - Stream definitions
+- `pyproject.toml` - Dependencies and metadata
+- `meltano-hub.yml` - Hub submission definition
+
+## More Info
+
+- [Full Migration Guide](SDK_MIGRATION.md)
+- [Compliance Report](COMPLIANCE_REPORT.md)
+- [Meltano SDK Docs](https://sdk.meltano.com/)
+- [OpenProject API](https://www.openproject.org/docs/api/)

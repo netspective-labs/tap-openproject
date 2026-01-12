@@ -1,7 +1,0 @@
-{
-  "api_key": "your-openproject-api-key-here",
-  "base_url": "https://your-instance.openproject.com/api/v3",
-  "timeout": 30,
-  "max_retries": 3,
-  "start_date": "2024-01-01T00:00:00Z"
-}

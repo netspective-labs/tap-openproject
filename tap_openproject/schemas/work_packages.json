@@ -1,0 +1,181 @@
+{
+  "type": "object",
+  "required": ["id"],
+  "properties": {
+    "id": {
+      "type": ["integer"],
+      "description": "Unique work package identifier"
+    },
+    "_type": {
+      "type": ["string", "null"],
+      "description": "Resource type"
+    },
+    "lockVersion": {
+      "type": ["integer", "null"],
+      "description": "Lock version for optimistic locking"
+    },
+    "subject": {
+      "type": ["string", "null"],
+      "description": "Work package subject/title"
+    },
+    "description": {
+      "type": ["object", "null"],
+      "description": "Work package description with formatting",
+      "properties": {
+        "format": {
+          "type": ["string", "null"]
+        },
+        "raw": {
+          "type": ["string", "null"]
+        },
+        "html": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "scheduleManually": {
+      "type": ["boolean", "null"],
+      "description": "Whether scheduling is manual"
+    },
+    "startDate": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Start date"
+    },
+    "dueDate": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Due date"
+    },
+    "derivedStartDate": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Calculated start date"
+    },
+    "derivedDueDate": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Calculated due date"
+    },
+    "estimatedTime": {
+      "type": ["string", "null"],
+      "description": "Estimated time duration (ISO 8601)"
+    },
+    "derivedEstimatedTime": {
+      "type": ["string", "null"],
+      "description": "Calculated estimated time"
+    },
+    "spentTime": {
+      "type": ["string", "null"],
+      "description": "Time spent on work package"
+    },
+    "percentageDone": {
+      "type": ["integer", "null"],
+      "description": "Completion percentage"
+    },
+    "createdAt": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Creation timestamp"
+    },
+    "updatedAt": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Last update timestamp"
+    },
+    "position": {
+      "type": ["integer", "null"],
+      "description": "Position in list"
+    },
+    "readonly": {
+      "type": ["boolean", "null"],
+      "description": "Whether work package is readonly"
+    },
+    "_links": {
+      "type": ["object", "null"],
+      "description": "HAL links with essential metadata",
+      "properties": {
+        "type": {
+          "type": ["object", "null"],
+          "properties": {
+            "href": {
+              "type": ["string", "null"]
+            },
+            "title": {
+              "type": ["string", "null"],
+              "description": "Work package type: Bug, Task, Feature, etc."
+            }
+          }
+        },
+        "status": {
+          "type": ["object", "null"],
+          "properties": {
+            "href": {
+              "type": ["string", "null"]
+            },
+            "title": {
+              "type": ["string", "null"],
+              "description": "Status: Open, In Progress, Closed, etc."
+            }
+          }
+        },
+        "priority": {
+          "type": ["object", "null"],
+          "properties": {
+            "href": {
+              "type": ["string", "null"]
+            },
+            "title": {
+              "type": ["string", "null"],
+              "description": "Priority level"
+            }
+          }
+        },
+        "assignee": {
+          "type": ["object", "null"],
+          "properties": {
+            "href": {
+              "type": ["string", "null"]
+            },
+            "title": {
+              "type": ["string", "null"],
+              "description": "Assigned user"
+            }
+          }
+        },
+        "project": {
+          "type": ["object", "null"],
+          "properties": {
+            "href": {
+              "type": ["string", "null"]
+            },
+            "title": {
+              "type": ["string", "null"],
+              "description": "Project name"
+            }
+          }
+        }
+      }
+    },
+    "type_title": {
+      "type": ["string", "null"],
+      "description": "Work package type extracted from _links.type.title"
+    },
+    "status_title": {
+      "type": ["string", "null"],
+      "description": "Status extracted from _links.status.title"
+    },
+    "priority_title": {
+      "type": ["string", "null"],
+      "description": "Priority extracted from _links.priority.title"
+    },
+    "assignee_title": {
+      "type": ["string", "null"],
+      "description": "Assignee extracted from _links.assignee.title"
+    },
+    "project_title": {
+      "type": ["string", "null"],
+      "description": "Project extracted from _links.project.title"
+    }
+  }
+}

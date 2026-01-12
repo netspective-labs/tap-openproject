@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+from datetime import datetime
 from typing import Any, Dict, Iterable, Optional
 from urllib.parse import urljoin
 
@@ -9,6 +11,7 @@ import requests
 from singer_sdk import typing as th
 from singer_sdk.streams import RESTStream
 from singer_sdk.authenticators import APIKeyAuthenticator
+from singer_sdk.exceptions import FatalAPIError, RetriableAPIError
 
 
 class OpenProjectAuthenticator(APIKeyAuthenticator):
@@ -37,7 +40,6 @@ class OpenProjectAuthenticator(APIKeyAuthenticator):
             The authenticated request.
         """
         # Manually set Basic Auth header
-        import base64
         credentials = base64.b64encode(f"apikey:{self.api_key}".encode()).decode()
         request.headers["Authorization"] = f"Basic {credentials}"
         return request
@@ -122,7 +124,7 @@ class ProjectsStream(RESTStream):
         Returns:
             Dictionary of URL query parameters.
         """
-        params: dict = {}
+        params: Dict[str, Any] = {}
         
         # Add pagination parameters if available
         if next_page_token:
@@ -130,11 +132,17 @@ class ProjectsStream(RESTStream):
         
         # Add start_date filter if configured and replication is not resuming
         if self.config.get("start_date") and not self.get_starting_replication_key_value(context):
-            params["filters"] = f'[{{"updatedAt":{{"operator":">=","values":["{self.config["start_date"]}"]}}}}]'
+            start_date = self.config["start_date"]
+            # Validate start_date is a valid ISO 8601 datetime to prevent injection
+            try:
+                datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+            except (ValueError, AttributeError) as e:
+                raise ValueError(f"Invalid start_date format: {start_date}. Must be ISO 8601 datetime.") from e
+            params["filters"] = f'[{{"updatedAt":{{"operator":">=","values":["{start_date}"]}}}}]'
         
         return params
 
-    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+    def parse_response(self, response: requests.Response) -> Iterable[Dict[str, Any]]:
         """Parse the API response and yield records.
         
         Args:
@@ -143,7 +151,21 @@ class ProjectsStream(RESTStream):
         Yields:
             Individual record dictionaries.
         """
-        data = response.json()
+        # Check HTTP status before parsing
+        try:
+            response.raise_for_status()
+        except requests.HTTPError as e:
+            # Determine if error is retriable (5xx) or fatal (4xx)
+            if 500 <= response.status_code < 600:
+                raise RetriableAPIError(f"HTTP {response.status_code}: {str(e)}") from e
+            else:
+                raise FatalAPIError(f"HTTP {response.status_code}: {str(e)}") from e
+        
+        # Parse JSON response with error handling
+        try:
+            data = response.json()
+        except requests.JSONDecodeError as e:
+            raise FatalAPIError(f"Invalid JSON response: {str(e)}") from e
         
         # OpenProject returns data in _embedded.elements
         embedded = data.get("_embedded", {})
@@ -294,7 +316,7 @@ class WorkPackagesStream(RESTStream):
         Returns:
             Dictionary of URL query parameters.
         """
-        params: dict = {}
+        params: Dict[str, Any] = {}
         
         # Add pagination parameters if available
         if next_page_token:
@@ -302,11 +324,17 @@ class WorkPackagesStream(RESTStream):
         
         # Add start_date filter if configured and replication is not resuming
         if self.config.get("start_date") and not self.get_starting_replication_key_value(context):
-            params["filters"] = f'[{{"updatedAt":{{"operator":">=","values":["{self.config["start_date"]}"]}}}}]'
+            start_date = self.config["start_date"]
+            # Validate start_date is a valid ISO 8601 datetime to prevent injection
+            try:
+                datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+            except (ValueError, AttributeError) as e:
+                raise ValueError(f"Invalid start_date format: {start_date}. Must be ISO 8601 datetime.") from e
+            params["filters"] = f'[{{"updatedAt":{{"operator":">=","values":["{start_date}"]}}}}]'
         
         return params
 
-    def parse_response(self, response: requests.Response) -> Iterable[dict]:
+    def parse_response(self, response: requests.Response) -> Iterable[Dict[str, Any]]:
         """Parse the API response and yield records.
         
         Args:
@@ -315,7 +343,21 @@ class WorkPackagesStream(RESTStream):
         Yields:
             Individual record dictionaries.
         """
-        data = response.json()
+        # Check HTTP status before parsing
+        try:
+            response.raise_for_status()
+        except requests.HTTPError as e:
+            # Determine if error is retriable (5xx) or fatal (4xx)
+            if 500 <= response.status_code < 600:
+                raise RetriableAPIError(f"HTTP {response.status_code}: {str(e)}") from e
+            else:
+                raise FatalAPIError(f"HTTP {response.status_code}: {str(e)}") from e
+        
+        # Parse JSON response with error handling
+        try:
+            data = response.json()
+        except requests.JSONDecodeError as e:
+            raise FatalAPIError(f"Invalid JSON response: {str(e)}") from e
         
         # OpenProject returns data in _embedded.elements
         embedded = data.get("_embedded", {})

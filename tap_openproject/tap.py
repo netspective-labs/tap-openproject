@@ -66,6 +66,7 @@ class TapOpenProject(Tap):
         """
         return [
             streams.ProjectsStream(self),
+            streams.WorkPackagesStream(self),
         ]
 
 

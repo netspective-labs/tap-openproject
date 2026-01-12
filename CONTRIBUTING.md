@@ -1,53 +1,174 @@
 # Contributing to tap-openproject
 
-Thank you for your interest in contributing to tap-openproject! This document provides guidelines and instructions for contributing.
+Thank you for contributing! This tap is built with the [Meltano Singer SDK](https://sdk.meltano.com/).
 
 ## Code of Conduct
 
-By participating in this project, you agree to maintain a respectful and inclusive environment for everyone.
+Be respectful, inclusive, and collaborative.
 
 ## How to Contribute
 
-### Reporting Bugs
+### Reporting Issues
 
-Before creating bug reports, please check existing issues to avoid duplicates. When creating a bug report, include:
+Check existing issues first, then include:
 
-- **Clear title and description**
-- **Steps to reproduce** the issue
-- **Expected behavior** vs actual behavior
-- **Environment details** (Python version, OS, OpenProject version)
-- **Relevant logs** or error messages
+- Clear description and steps to reproduce
+- Expected vs actual behavior
+- Environment: Python version, OS, OpenProject instance version
+- Relevant logs (remove sensitive data)
 
-### Suggesting Enhancements
+### Suggesting Features
 
-Enhancement suggestions are welcome! Please provide:
-
-- **Clear use case** for the enhancement
-- **Expected behavior** and benefits
-- **Possible implementation** approach (if you have ideas)
+- Describe the use case and benefits
+- Check if it's supported by the Singer SDK
+- Consider if it should be a stream-level or tap-level feature
 
 ### Pull Requests
 
-1. **Fork the repository** and create your branch from `main`
-2. **Make your changes** following the code style guidelines
-3. **Add tests** for new functionality
-4. **Update documentation** as needed
-5. **Ensure tests pass** (`pytest tests/`)
-6. **Submit a pull request** with a clear description
+1. Fork and create a feature branch from `main`
+2. Follow SDK patterns and conventions
+3. Add tests for new functionality
+4. Update documentation (README, CHANGELOG)
+5. Ensure tests pass: `poetry run pytest`
+6. Run linting: `poetry run ruff check .`
+7. Submit PR with clear description
 
 ## Development Setup
 
 ### Prerequisites
 
-- Python 3.8 or higher
-- pip and virtualenv
+- Python 3.8+
+- Poetry (recommended) or pip
 - Git
+- OpenProject API key for testing
 
-### Setup Steps
+### Setup
 
 ```bash
 # Clone your fork
 git clone https://github.com/yourusername/tap-openproject.git
+cd tap-openproject
+
+# Install with Poetry
+poetry install
+poetry shell
+
+# Or with pip
+python -m venv .venv
+source .venv/bin/activate
+pip install -e '.[dev]'
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+poetry run pytest
+
+# With coverage
+poetry run pytest --cov=tap_openproject
+
+# Run specific test
+poetry run pytest tests/test_projects_stream.py -v
+```
+
+### Code Style
+
+We use `ruff` for linting and formatting:
+
+```bash
+# Check code
+poetry run ruff check .
+
+# Fix automatically
+poetry run ruff check --fix .
+
+# Format code
+poetry run ruff format .
+```
+
+## SDK Development Guide
+
+### Adding a New Stream
+
+1. Define stream class in `tap_openproject/streams.py`:
+
+```python
+class NewStream(RESTStream):
+    name = "new_stream"
+    path = "/endpoint"
+    primary_keys = ["id"]
+    replication_key = "updated_at"  # If incremental
+    
+    schema = th.PropertiesList(
+        th.Property("id", th.IntegerType, required=True),
+        # ... more properties
+    ).to_dict()
+```
+
+2. Register in `tap_openproject/tap.py`:
+
+```python
+def discover_streams(self) -> List[Stream]:
+    return [
+        streams.ProjectsStream(self),
+        streams.NewStream(self),  # Add here
+    ]
+```
+
+3. Add tests in `tests/test_new_stream.py`
+
+### Working with SDK Features
+
+- **Stream Maps**: Inherited automatically from SDK
+- **Pagination**: Override `get_next_page_token()` method
+- **Authentication**: Customize `OpenProjectAuthenticator`
+- **Incremental**: Set `replication_key` on stream class
+
+### Testing with Real API
+
+Create `config.json` (gitignored):
+
+```json
+{
+  "api_key": "YOUR_TEST_API_KEY",
+  "base_url": "https://community.openproject.org/api/v3"
+}
+```
+
+Run manually:
+
+```bash
+poetry run tap-openproject --config config.json --discover
+poetry run tap-openproject --config config.json | head -20
+```
+
+## Documentation
+
+Update these files when making changes:
+
+- **README.md** - User-facing documentation
+- **CHANGELOG.md** - Record all changes
+- **QUICKSTART.md** - Quick reference guide
+- **meltano-hub.yml** - Meltano Hub metadata
+
+## Release Process
+
+1. Update version in `pyproject.toml`
+2. Update `CHANGELOG.md` with release date
+3. Create git tag: `git tag v0.x.0`
+4. Push tag: `git push --tags`
+5. GitHub Actions will handle the rest (if configured)
+
+## Getting Help
+
+- [Meltano Singer SDK Docs](https://sdk.meltano.com/)
+- [Meltano Slack](https://meltano.com/slack)
+- [Singer Specification](https://hub.meltano.com/singer/spec)
+
+## License
+
+By contributing, you agree that your contributions will be licensed under the MIT License.
 cd tap-openproject
 
 # Create virtual environment

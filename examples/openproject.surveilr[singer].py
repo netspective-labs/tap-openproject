@@ -38,7 +38,7 @@ from datetime import datetime, timezone
 
 # Script directory
 script_dir = Path(__file__).parent
-tap_dir = script_dir / "tap_open_project"
+tap_dir = script_dir / "tap_openproject"
 
 # Configure logging to stderr (surveilr reads stdout for data)
 logging.basicConfig(
@@ -59,9 +59,10 @@ def setup_virtual_environment() -> Path:
     
     if not venv_path.exists():
         logger.info("Creating virtual environment for OpenProject tap...")
+        logger.info("This may take a few minutes on first run...")
         try:
             subprocess.run([sys.executable, "-m", "venv", str(venv_path)], 
-                         check=True, capture_output=True)
+                         check=True)
             logger.info("Virtual environment created successfully")
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to create virtual environment: {e}")
@@ -83,27 +84,49 @@ def install_dependencies(venv_path: Path):
     python_cmd = get_venv_python(venv_path)
     pip_cmd = str(venv_path / ("Scripts" if os.name == 'nt' else "bin") / "pip")
     
-    # Check if dependencies are already installed
+    # Check if tap-openproject (SDK version) is already installed
     try:
         result = subprocess.run(
-            [python_cmd, "-c", "import requests, singer; print('ok')"],
+            [python_cmd, "-c", "import tap_openproject; from tap_openproject.tap import TapOpenProject; print('ok')"],
             capture_output=True, text=True, timeout=5
         )
         if result.returncode == 0 and "ok" in result.stdout:
-            logger.info("Dependencies already installed")
+            logger.info("SDK-based tap-openproject already installed")
             return
     except:
         pass
     
-    logger.info("Installing tap dependencies (requests, singer-python)...")
+    logger.info("Installing SDK-based tap-openproject...")
     try:
         # Upgrade pip first
+        logger.info("Upgrading pip...")
         subprocess.run([pip_cmd, "install", "--upgrade", "pip"], 
-                      check=True, capture_output=True)
-        # Install required dependencies
-        subprocess.run([pip_cmd, "install", "requests", "singer-python"], 
-                      check=True, capture_output=True)
-        logger.info("Dependencies installed successfully")
+                      check=True)
+        
+        # Install from GitHub feature branch first
+        github_repo = os.getenv('TAP_OPENPROJECT_REPO', 
+                                'git+https://github.com/avinashkurup/tap-openproject.git@feature/sdk-migration')
+        
+        try:
+            logger.info(f"Installing tap-openproject (SDK version) from: {github_repo}")
+            result = subprocess.run([pip_cmd, "install", github_repo], 
+                          check=True, timeout=180)
+            logger.info("Successfully installed SDK-based tap-openproject from GitHub")
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+            logger.warning(f"GitHub installation failed: {e}")
+            logger.info("Falling back to local installation...")
+            
+            # Fall back to local installation (parent directory of script)
+            local_tap_dir = script_dir.parent / "tap-openproject"
+            if local_tap_dir.exists() and (local_tap_dir / "pyproject.toml").exists():
+                logger.info(f"Installing from local directory: {local_tap_dir}")
+                subprocess.run([pip_cmd, "install", "-e", str(local_tap_dir)], 
+                              check=True)
+                logger.info("Successfully installed from local directory")
+            else:
+                raise Exception(f"Local tap directory not found or missing pyproject.toml: {local_tap_dir}")
+        
+        logger.info("SDK dependencies installed successfully")
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to install dependencies: {e}")
         raise
@@ -111,24 +134,39 @@ def install_dependencies(venv_path: Path):
 
 def ensure_dependencies():
     """Ensure all dependencies are available"""
-    # Check if we're already in the virtual environment
+    # First, always try to import the tap
+    try:
+        from tap_openproject.tap import TapOpenProject
+        logger.info("SDK tap-openproject is already available")
+        return
+    except ImportError:
+        pass
+    
+    # Check if we're in the tap-openproject source directory
+    # (parent dir has pyproject.toml with tap-openproject)
+    in_tap_project = False
+    parent_pyproject = script_dir.parent / "pyproject.toml"
+    if parent_pyproject.exists():
+        try:
+            with open(parent_pyproject) as f:
+                content = f.read()
+                if 'name = "tap-openproject"' in content:
+                    in_tap_project = True
+        except:
+            pass
+    
+    # Check if we're in a virtual environment
     in_venv = hasattr(sys, 'real_prefix') or (
         hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix
     )
     
-    if in_venv:
-        # Already in a venv, check if dependencies are installed
-        try:
-            import requests
-            import singer
-            logger.info("Running in virtual environment with dependencies available")
-            return
-        except ImportError:
-            logger.error("Virtual environment is active but dependencies are missing")
-            logger.error("Please install: pip install requests singer-python")
-            sys.exit(1)
+    if in_venv and not in_tap_project:
+        # In a managed venv (not source project), tap should have been installed
+        logger.error("Virtual environment is active but SDK tap-openproject is missing")
+        logger.error("This shouldn't happen - installation may have failed")
+        sys.exit(1)
     
-    # Not in a venv, need to re-execute in our managed venv
+    # Not in a venv (or in tap project without tap), need to set up managed venv
     venv_path = setup_virtual_environment()
     install_dependencies(venv_path)
     
@@ -150,11 +188,18 @@ def ensure_dependencies():
 # Ensure dependencies before importing tap modules
 ensure_dependencies()
 
-# Now safe to import tap components (after dependencies are ensured)
-sys.path.insert(0, str(script_dir))
-from tap_open_project.http_client import HttpClient
-from tap_open_project.streams import ProjectStream
-import singer
+# Now safe to import tap components (SDK-based)
+from tap_openproject.tap import TapOpenProject
+import io
+import json
+
+
+def normalize_base_url(base_url: str) -> str:
+    """Ensure base URL ends with /api/v3 for OpenProject API."""
+    base_url = base_url.rstrip('/')
+    if not base_url.endswith('/api/v3'):
+        base_url = f"{base_url}/api/v3"
+    return base_url
 
 
 def load_env_file():
@@ -234,6 +279,13 @@ def get_config(args=None, config_file=None):
             logger.error("OPENPROJECT_API_KEY not found in environment or .env file")
             sys.exit(1)
         
+        # Validate API key format (basic check)
+        if len(api_key) < 20:
+            logger.warning("API key seems too short - may be invalid")
+        
+        # Normalize base URL to ensure /api/v3 suffix
+        base_url = normalize_base_url(base_url)
+        
         config = {
             'api_key': api_key,
             'base_url': base_url,
@@ -268,10 +320,7 @@ def get_catalog():
     Returns:
         dict: Singer catalog with available streams
     """
-    # Load schema for projects stream
-    schema_path = tap_dir / 'schemas' / 'projects.json'
-    with open(schema_path, 'r', encoding='utf-8') as f:
-        schema = json.load(f)
+    schema = load_schema()
     
     catalog = {
         "streams": [
@@ -297,18 +346,26 @@ def get_catalog():
 
 
 def do_discover():
-    """
-    Run discovery mode and output catalog to stdout.
-    """
-    catalog = get_catalog()
+    """Run discovery mode using SDK tap and output catalog to stdout."""
+    # Create a minimal config (just for discovery, doesn't need credentials)
+    config = {
+        "api_key": "dummy",  # Not used for discovery
+        "base_url": "https://community.openproject.org/api/v3"
+    }
+    
+    # Create tap instance (SDK instantiation without parse_args)
+    tap = TapOpenProject(config=config)
+    
+    # Run discovery
+    catalog = tap.catalog_dict
     json.dump(catalog, sys.stdout, indent=2)
     sys.stdout.write('\n')
-    logger.info("Discovery mode completed")
+    logger.info("Discovery mode completed using SDK tap")
 
 
 def do_sync(args=None, config_file=None, state_file=None, catalog_file=None):
     """
-    Execute the OpenProject tap and output Singer messages.
+    Execute the OpenProject tap using SDK and output Singer messages.
     
     Args:
         args: Parsed arguments (for surveilr stdin data)
@@ -320,81 +377,18 @@ def do_sync(args=None, config_file=None, state_file=None, catalog_file=None):
         # Load configuration
         config = get_config(args, config_file)
         
-        logger.info(f"Connecting to OpenProject at {config['base_url']}")
+        logger.info(f"Connecting to OpenProject at {config['base_url']} using SDK tap")
         
-        # Load state if provided
-        state = {}
-        if state_file and os.path.exists(state_file):
-            with open(state_file, 'r', encoding='utf-8') as f:
-                state = json.load(f)
-            logger.info(f"Loaded state from {state_file}")
+        # Create tap instance with config
+        tap = TapOpenProject(config=config, parse_args=False, state=state_file, catalog=catalog_file)
         
-        # Load catalog if provided, otherwise use default catalog
-        if catalog_file and os.path.exists(catalog_file):
-            with open(catalog_file, 'r', encoding='utf-8') as f:
-                catalog = json.load(f)
-            logger.info(f"Loaded catalog from {catalog_file}")
-        else:
-            # Use default catalog (all streams selected)
-            catalog = get_catalog()
-            logger.info("Using default catalog (all streams selected)")
+        # Capture stdout to get Singer messages
+        tap.sync_all()
         
-        # Check if projects stream is selected
-        sync_projects = False
-        for stream_entry in catalog.get('streams', []):
-            if stream_entry['tap_stream_id'] == 'projects':
-                metadata = stream_entry.get('metadata', [])
-                for meta in metadata:
-                    if meta.get('breadcrumb') == []:
-                        sync_projects = meta.get('metadata', {}).get('selected', False)
-                        break
-        
-        if not sync_projects:
-            logger.info("Projects stream not selected in catalog, skipping")
-            return
-        
-        # Initialize HTTP client
-        client = HttpClient(
-            base_url=config['base_url'],
-            api_key=config['api_key'],
-            timeout=config['timeout'],
-            max_retries=config['max_retries']
-        )
-        
-        # Initialize stream
-        stream = ProjectStream(client)
-        
-        # Fetch projects
-        projects = stream.get_records()
-        logger.info(f"Retrieved {len(projects)} projects")
-        
-        # Load and emit schema
-        schema_path = tap_dir / stream.schema
-        with open(schema_path, 'r', encoding='utf-8') as f:
-            schema = json.load(f)
-        
-        # Output Singer messages to stdout (surveilr will capture this)
-        singer.write_schema(stream.name, schema, ["id"])
-        
-        # Emit records
-        for project in projects:
-            singer.write_record(stream.name, project)
-        
-        # Emit state
-        new_state = state.copy() if state else {}
-        new_state.update({
-            "last_sync": datetime.now(timezone.utc).isoformat(),
-            "projects_count": len(projects)
-        })
-        singer.write_state(new_state)
-        
-        logger.info(f"Successfully emitted {len(projects)} project records")
-        
-        # Clean up
-        client.close()
+        logger.info("SDK tap sync completed successfully")
         
     except Exception as e:
-        logger.error(f"Error running tap: {e}", exc_info=True)
+        logger.error(f"Error running SDK tap: {e}", exc_info=True)
         sys.exit(1)
 
 

@@ -21,8 +21,11 @@ class OpenProjectAuthenticator(APIKeyAuthenticator):
             stream: The stream instance to authenticate.
             api_key: The OpenProject API key.
         """
+        # Store api_key for later use
+        self.api_key = api_key
         # OpenProject uses Basic Auth with username "apikey" and password as the API key
-        super().__init__(stream=stream, key="Authorization", value=f"Basic apikey:{api_key}", location="header")
+        # We'll handle the auth in __call__ method, so we just initialize parent with dummy values
+        super().__init__(stream=stream, key="Authorization", value="", location="header")
     
     def __call__(self, request: requests.PreparedRequest) -> requests.PreparedRequest:
         """Authenticate a request by adding Basic Auth header.
@@ -35,8 +38,7 @@ class OpenProjectAuthenticator(APIKeyAuthenticator):
         """
         # Manually set Basic Auth header
         import base64
-        api_key = self.value.split(":")[-1]  # Extract API key from value
-        credentials = base64.b64encode(f"apikey:{api_key}".encode()).decode()
+        credentials = base64.b64encode(f"apikey:{self.api_key}".encode()).decode()
         request.headers["Authorization"] = f"Basic {credentials}"
         return request
 

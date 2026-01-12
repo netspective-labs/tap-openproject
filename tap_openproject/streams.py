@@ -216,7 +216,34 @@ class WorkPackagesStream(RESTStream):
         th.Property("updatedAt", th.DateTimeType, description="Last update timestamp"),
         th.Property("position", th.IntegerType, description="Position in list"),
         th.Property("readonly", th.BooleanType, description="Whether work package is readonly"),
-        th.Property("_links", th.ObjectType(), description="HAL links to related resources"),
+        th.Property("_links", th.ObjectType(
+            th.Property("type", th.ObjectType(
+                th.Property("href", th.StringType),
+                th.Property("title", th.StringType, description="Work package type: Bug, Task, Feature, etc."),
+            )),
+            th.Property("status", th.ObjectType(
+                th.Property("href", th.StringType),
+                th.Property("title", th.StringType, description="Status: Open, In Progress, Closed, etc."),
+            )),
+            th.Property("priority", th.ObjectType(
+                th.Property("href", th.StringType),
+                th.Property("title", th.StringType, description="Priority level"),
+            )),
+            th.Property("assignee", th.ObjectType(
+                th.Property("href", th.StringType),
+                th.Property("title", th.StringType, description="Assigned user"),
+            )),
+            th.Property("project", th.ObjectType(
+                th.Property("href", th.StringType),
+                th.Property("title", th.StringType, description="Project name"),
+            )),
+        ), description="HAL links with essential metadata"),
+        # Flattened convenience fields extracted from _links
+        th.Property("type_title", th.StringType, description="Work package type extracted from _links.type.title"),
+        th.Property("status_title", th.StringType, description="Status extracted from _links.status.title"),
+        th.Property("priority_title", th.StringType, description="Priority extracted from _links.priority.title"),
+        th.Property("assignee_title", th.StringType, description="Assignee extracted from _links.assignee.title"),
+        th.Property("project_title", th.StringType, description="Project extracted from _links.project.title"),
     ).to_dict()
 
     @property
@@ -298,6 +325,25 @@ class WorkPackagesStream(RESTStream):
         
         for record in records:
             yield record
+
+    def post_process(self, row: dict, context: Optional[dict] = None) -> Optional[dict]:
+        """Extract commonly used fields from _links for easier querying.
+        
+        Args:
+            row: Individual record dictionary.
+            context: Stream context dictionary.
+            
+        Returns:
+            Modified record with flattened fields.
+        """
+        if "_links" in row and row["_links"]:
+            links = row["_links"]
+            row["type_title"] = links.get("type", {}).get("title")
+            row["status_title"] = links.get("status", {}).get("title")
+            row["priority_title"] = links.get("priority", {}).get("title")
+            row["assignee_title"] = links.get("assignee", {}).get("title")
+            row["project_title"] = links.get("project", {}).get("title")
+        return row
 
     def get_next_page_token(
         self,

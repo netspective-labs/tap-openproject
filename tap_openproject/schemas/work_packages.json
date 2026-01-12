@@ -93,7 +93,89 @@
     },
     "_links": {
       "type": ["object", "null"],
-      "description": "HAL links to related resources"
+      "description": "HAL links with essential metadata",
+      "properties": {
+        "type": {
+          "type": ["object", "null"],
+          "properties": {
+            "href": {
+              "type": ["string", "null"]
+            },
+            "title": {
+              "type": ["string", "null"],
+              "description": "Work package type: Bug, Task, Feature, etc."
+            }
+          }
+        },
+        "status": {
+          "type": ["object", "null"],
+          "properties": {
+            "href": {
+              "type": ["string", "null"]
+            },
+            "title": {
+              "type": ["string", "null"],
+              "description": "Status: Open, In Progress, Closed, etc."
+            }
+          }
+        },
+        "priority": {
+          "type": ["object", "null"],
+          "properties": {
+            "href": {
+              "type": ["string", "null"]
+            },
+            "title": {
+              "type": ["string", "null"],
+              "description": "Priority level"
+            }
+          }
+        },
+        "assignee": {
+          "type": ["object", "null"],
+          "properties": {
+            "href": {
+              "type": ["string", "null"]
+            },
+            "title": {
+              "type": ["string", "null"],
+              "description": "Assigned user"
+            }
+          }
+        },
+        "project": {
+          "type": ["object", "null"],
+          "properties": {
+            "href": {
+              "type": ["string", "null"]
+            },
+            "title": {
+              "type": ["string", "null"],
+              "description": "Project name"
+            }
+          }
+        }
+      }
+    },
+    "type_title": {
+      "type": ["string", "null"],
+      "description": "Work package type extracted from _links.type.title"
+    },
+    "status_title": {
+      "type": ["string", "null"],
+      "description": "Status extracted from _links.status.title"
+    },
+    "priority_title": {
+      "type": ["string", "null"],
+      "description": "Priority extracted from _links.priority.title"
+    },
+    "assignee_title": {
+      "type": ["string", "null"],
+      "description": "Assignee extracted from _links.assignee.title"
+    },
+    "project_title": {
+      "type": ["string", "null"],
+      "description": "Project extracted from _links.project.title"
     }
   }
 }

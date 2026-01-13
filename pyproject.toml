@@ -1,13 +1,13 @@
 [tool.poetry]
 name = "tap-openproject"
-version = "0.2.0"
+version = "0.2.3"
 description = "Singer tap for OpenProject API - Built with the Meltano Singer SDK"
 authors = ["surveilr Team <support@surveilr.com>"]
 license = "MIT"
 readme = "README.md"
-homepage = "https://github.com/surveilr/tap-openproject"
-repository = "https://github.com/surveilr/tap-openproject"
-documentation = "https://github.com/surveilr/tap-openproject#readme"
+homepage = "https://github.com/netspective-labs/tap-openproject#readme"
+repository = "https://github.com/netspective-labs/tap-openproject"
+documentation = "https://github.com/netspective-labs/tap-openproject#readme"
 keywords = ["singer", "tap", "openproject", "etl", "meltano", "sdk"]
 classifiers = [
     "Development Status :: 4 - Beta",

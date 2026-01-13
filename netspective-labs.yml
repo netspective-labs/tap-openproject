@@ -1,10 +1,10 @@
 name: tap-openproject
 namespace: tap_openproject
-variant: surveilr
+variant: netspective-labs
 label: OpenProject
 description: Singer tap for extracting data from OpenProject project management API
 repo: https://github.com/netspective-labs/tap-openproject
-pip_url: git+https://github.com/netspective-labs/tap-openproject.git
+pip_url: tap-openproject
 executable: tap-openproject
 domain_url: https://www.openproject.org/
 logo_url: /assets/logos/extractors/openproject.png
@@ -14,6 +14,8 @@ capabilities:
   - catalog
   - discover
   - state
+  - about
+  - stream-maps
 
 settings:
   - name: api_key
@@ -52,12 +54,11 @@ settings:
     kind: string
     label: User Agent
     description: User-Agent header for API requests
-    value: tap-openproject/0.2.0
+    value: tap-openproject/0.2.3
     hidden: true
 
 settings_group_validation:
-  - - api_key
-    - base_url
+  - [api_key, base_url]
 
 keywords:
   - api
@@ -65,6 +66,7 @@ keywords:
   - project-management
   - openproject
   - collaboration
+  - singer-tap
 
 definition: |
   A [Singer](https://www.singer.io/) tap for extracting data from the [OpenProject](https://www.openproject.org/) API.

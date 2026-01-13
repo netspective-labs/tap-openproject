@@ -136,7 +136,7 @@ python -m tap_openproject.tap --config config.json 2>&1 | grep -i error
 
 ### Run Tests
 ```bash
-pytest tests/
+pytest test/
 ```
 
 ### Format Code

@@ -3,8 +3,8 @@ namespace: tap_openproject
 variant: surveilr
 label: OpenProject
 description: Singer tap for extracting data from OpenProject project management API
-repo: https://github.com/surveilr/tap-openproject
-pip_url: git+https://github.com/surveilr/tap-openproject.git
+repo: https://github.com/netspective-labs/tap-openproject
+pip_url: git+https://github.com/netspective-labs/tap-openproject.git
 executable: tap-openproject
 domain_url: https://www.openproject.org/
 logo_url: /assets/logos/extractors/openproject.png

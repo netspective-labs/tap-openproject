@@ -135,7 +135,6 @@ poetry.lock
 
 # Singer/Meltano specific
 config.json
-config.example.json
 state.json
 catalog.json
 output.singer

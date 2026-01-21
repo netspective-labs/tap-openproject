@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import json
 from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -154,13 +155,23 @@ class OpenProjectStream(RESTStream):
         if next_page_token:
             params["offset"] = next_page_token
 
+        filters = []
+
         # Only apply start_date filter for incremental streams with replication_key
         if (self.replication_key and
             self.config.get("start_date") and
             not self.get_starting_replication_key_value(context)):
             start_date = self.config["start_date"]
             self._validate_datetime(start_date)
-            params["filters"] = f'[{{"{self.replication_key}":{{"operator":">=","values":["{start_date}"]}}}}]'
+            filters.append({self.replication_key: {"operator": ">=", "values": [start_date]}})
+
+        # Add project filter if configured and stream supports it
+        project_ids = self.config.get("project_ids")
+        if project_ids and getattr(self, 'supports_project_filter', False):
+            filters.append({"project": {"operator": "=", "values": [str(pid) for pid in project_ids]}})
+
+        if filters:
+            params["filters"] = json.dumps(filters)
 
         return params
 
@@ -287,6 +298,7 @@ class WorkPackagesStream(OpenProjectStream):
     path = "/work_packages"
     primary_keys = ["id"]
     replication_key = "updatedAt"
+    supports_project_filter = True
 
     schema = th.PropertiesList(
         th.Property("id", th.IntegerType, required=True, description="Unique work package identifier"),
@@ -580,6 +592,7 @@ class TimeEntriesStream(OpenProjectStream):
     path = "/time_entries"
     primary_keys = ["id"]
     replication_key = "updatedAt"
+    supports_project_filter = True
 
     schema = th.PropertiesList(
         th.Property("id", th.IntegerType, required=True, description="Unique time entry identifier"),
@@ -686,6 +699,7 @@ class MembershipsStream(OpenProjectStream):
     name = "memberships"
     path = "/memberships"
     primary_keys = ["id"]
+    supports_project_filter = True
     replication_key = "updatedAt"
 
     schema = th.PropertiesList(

@@ -96,7 +96,7 @@ See [QUICKSTART.md](QUICKSTART.md) for more details.
 
 ## Available Streams
 
-This tap extracts data from 11 OpenProject API endpoints, organized into three categories:
+This tap extracts data from 12 OpenProject API endpoints, organized into three categories:
 
 ### Core Streams
 
@@ -123,6 +123,7 @@ This tap extracts data from 11 OpenProject API endpoints, organized into three c
 | `time_entries` | `/time_entries` | Incremental | Time tracking data |
 | `relations` | `/relations` | Full | Work package dependencies |
 | `memberships` | `/memberships` | Incremental | Project membership assignments |
+| `attachments` | `/work_packages/{id}/attachments` | Full | File attachments (child of work_packages) |
 
 ### Field Flattening
 
@@ -136,6 +137,11 @@ All streams that reference other entities include **flattened fields** for easie
 - `author_id`, `author_title` - Creator
 - `version_id`, `version_title` - Target version
 - `parent_id` - Parent work package ID
+
+The `attachments` stream includes:
+- `author_id`, `author_title` - User who uploaded the file
+- `container_id`, `container_type`, `container_title` - Parent object (WorkPackage, Meeting, etc.)
+- `download_url` - Direct download link
 
 This enables direct JOINs between streams without parsing HAL `_links` objects
 

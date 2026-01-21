@@ -80,6 +80,7 @@ class TapOpenProject(Tap):
             streams.TimeEntriesStream(self),
             streams.RelationsStream(self),
             streams.MembershipsStream(self),
+            streams.AttachmentsStream(self),
         ]
 
 

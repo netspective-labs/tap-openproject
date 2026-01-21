@@ -357,6 +357,21 @@ class WorkPackagesStream(OpenProjectStream):
             row.update(self.flatten_link(links, "parent"))
         return row
 
+    def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
+        """Return context for child streams (attachments).
+
+        Args:
+            record: Individual record dictionary.
+            context: Stream context dictionary.
+
+        Returns:
+            Context dictionary for child streams.
+        """
+        return {
+            "work_package_id": record["id"],
+            "work_package_title": record.get("subject"),
+        }
+
 
 # =============================================================================
 # Reference Data Streams (typically full refresh)
@@ -722,4 +737,96 @@ class MembershipsStream(OpenProjectStream):
             row["principal_title"] = None
             row["role_ids"] = []
             row["role_titles"] = []
+        return row
+
+
+class AttachmentsStream(OpenProjectStream):
+    """Attachments from work packages.
+
+    Note: OpenProject doesn't have a global /attachments list endpoint.
+    Attachments must be fetched per work package via /work_packages/{id}/attachments.
+    This stream is a child of WorkPackagesStream.
+    """
+
+    name = "attachments"
+    path = "/work_packages/{work_package_id}/attachments"
+    primary_keys = ["id"]
+    replication_key = None  # Full refresh per work package
+    parent_stream_type = WorkPackagesStream
+
+    schema = th.PropertiesList(
+        th.Property("id", th.IntegerType, required=True, description="Unique attachment identifier"),
+        th.Property("_type", th.StringType, description="Resource type"),
+        th.Property("fileName", th.StringType, description="Original file name"),
+        th.Property("fileSize", th.IntegerType, description="File size in bytes"),
+        th.Property("description", th.ObjectType(
+            th.Property("format", th.StringType),
+            th.Property("raw", th.StringType),
+            th.Property("html", th.StringType),
+        ), description="User-provided description"),
+        th.Property("contentType", th.StringType, description="MIME type of the file"),
+        th.Property("digest", th.ObjectType(
+            th.Property("algorithm", th.StringType),
+            th.Property("hash", th.StringType),
+        ), description="File checksum"),
+        th.Property("createdAt", th.DateTimeType, description="Upload timestamp"),
+        th.Property("_links", th.ObjectType(), description="HAL links"),
+        # Flattened fields from _links
+        th.Property("author_id", th.IntegerType, description="Uploader user ID"),
+        th.Property("author_title", th.StringType, description="Uploader user name"),
+        th.Property("work_package_id", th.IntegerType, description="Parent work package ID"),
+        th.Property("work_package_title", th.StringType, description="Parent work package subject"),
+        th.Property("download_url", th.StringType, description="Direct download URL"),
+    ).to_dict()
+
+    def get_url_params(
+        self,
+        context: Optional[dict],
+        next_page_token: Optional[Any],
+    ) -> Dict[str, Any]:
+        """Get URL query parameters - no filtering for child stream.
+
+        Args:
+            context: Stream context dictionary.
+            next_page_token: Token for the next page of results.
+
+        Returns:
+            Dictionary of URL query parameters.
+        """
+        params: Dict[str, Any] = {}
+        if next_page_token:
+            params["offset"] = next_page_token
+        return params
+
+    def post_process(self, row: dict, context: Optional[dict] = None) -> Optional[dict]:
+        """Extract attachment metadata from _links and add work package context.
+
+        Args:
+            row: Individual record dictionary.
+            context: Stream context dictionary containing work_package_id.
+
+        Returns:
+            Modified record with flattened fields.
+        """
+        # Add work package context from parent stream
+        if context:
+            row["work_package_id"] = context.get("work_package_id")
+            row["work_package_title"] = context.get("work_package_title")
+        else:
+            row["work_package_id"] = None
+            row["work_package_title"] = None
+
+        if "_links" in row and row["_links"]:
+            links = row["_links"]
+
+            # Author info
+            row.update(self.flatten_link(links, "author"))
+
+            # Download URL
+            download_location = links.get("downloadLocation", {})
+            row["download_url"] = download_location.get("href")
+        else:
+            row["author_id"] = None
+            row["author_title"] = None
+            row["download_url"] = None
         return row

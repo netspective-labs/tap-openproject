@@ -136,6 +136,7 @@ def test_all_streams_defined():
         "TimeEntriesStream",
         "RelationsStream",
         "MembershipsStream",
+        "AttachmentsStream",
     ]
 
     from tap_openproject import streams

@@ -53,20 +53,33 @@ class TapOpenProject(Tap):
         th.Property(
             "user_agent",
             th.StringType,
-            default="tap-openproject/0.2.0",
+            default="tap-openproject/0.3.0",
             description="User-Agent header for API requests",
         ),
     ).to_dict()
 
     def discover_streams(self) -> List[Stream]:
         """Return a list of discovered streams.
-        
+
         Returns:
             A list of discovered streams.
         """
         return [
+            # Core streams
             streams.ProjectsStream(self),
             streams.WorkPackagesStream(self),
+            # Reference data streams
+            streams.StatusesStream(self),
+            streams.TypesStream(self),
+            streams.PrioritiesStream(self),
+            streams.RolesStream(self),
+            # User data (may require admin access)
+            streams.UsersStream(self),
+            # Transactional/relationship streams
+            streams.VersionsStream(self),
+            streams.TimeEntriesStream(self),
+            streams.RelationsStream(self),
+            streams.MembershipsStream(self),
         ]
 
 

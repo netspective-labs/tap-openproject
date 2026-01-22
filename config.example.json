@@ -1,5 +1,3 @@
-"""Test configuration for tap-openproject."""
-
 {
   "api_key": "YOUR_API_KEY_HERE",
   "base_url": "https://community.openproject.org/api/v3",

@@ -92,30 +92,58 @@ See [QUICKSTART.md](QUICKSTART.md) for more details.
 | `timeout` | integer | No | 30 | HTTP request timeout in seconds |
 | `max_retries` | integer | No | 3 | Maximum retry attempts for failed requests |
 | `start_date` | datetime | No | - | ISO 8601 date for incremental sync starting point |
-| `user_agent` | string | No | `tap-openproject/0.2.0` | User-Agent header value |
+| `user_agent` | string | No | `tap-openproject/0.3.0` | User-Agent header value |
 
 ## Available Streams
 
-### Projects
+This tap extracts data from 12 OpenProject API endpoints, organized into three categories:
 
-Extracts projects from your OpenProject instance.
+### Core Streams
 
-**Primary Key:** `id`  
-**Replication Key:** `updatedAt` (supports incremental sync)
+| Stream | Endpoint | Replication | Description |
+|--------|----------|-------------|-------------|
+| `projects` | `/projects` | Incremental | Project metadata with parent relationships |
+| `work_packages` | `/work_packages` | Incremental | Tasks, bugs, features with all relationships |
 
-**Schema Fields:**
-- `id` (integer) - Unique project identifier
-- `name` (string) - Project name
-- `identifier` (string) - Project key
-- `description` (object) - Project description with formatting (raw, html)
-- `active` (boolean) - Whether project is active
-- `public` (boolean) - Whether project is public
-- `status` (string) - Project status
-- `statusExplanation` (object) - Status details
-- `createdAt` (datetime) - Creation timestamp
-- `updatedAt` (datetime) - Last update timestamp (used for incremental sync)
-- `_links` (object) - HAL hypermedia links
-- `_type` (string) - Resource type
+### Reference Data Streams
+
+| Stream | Endpoint | Replication | Description |
+|--------|----------|-------------|-------------|
+| `statuses` | `/statuses` | Full | Work package status definitions |
+| `types` | `/types` | Incremental | Work package types (Bug, Task, Feature, etc.) |
+| `priorities` | `/priorities` | Full | Priority level definitions |
+| `roles` | `/roles` | Full | Role definitions for memberships |
+| `users` | `/users` | Incremental | User accounts (may require admin access) |
+
+### Transactional Streams
+
+| Stream | Endpoint | Replication | Description |
+|--------|----------|-------------|-------------|
+| `versions` | `/versions` | Incremental | Project milestones/releases |
+| `time_entries` | `/time_entries` | Incremental | Time tracking data |
+| `relations` | `/relations` | Full | Work package dependencies |
+| `memberships` | `/memberships` | Incremental | Project membership assignments |
+| `attachments` | `/work_packages/{id}/attachments` | Full | File attachments (child of work_packages) |
+
+### Field Flattening
+
+All streams that reference other entities include **flattened fields** for easier querying. For example, `work_packages` includes:
+
+- `type_id`, `type_title` - Work package type
+- `status_id`, `status_title` - Current status
+- `priority_id`, `priority_title` - Priority level
+- `project_id`, `project_title` - Parent project
+- `assignee_id`, `assignee_title` - Assigned user
+- `author_id`, `author_title` - Creator
+- `version_id`, `version_title` - Target version
+- `parent_id` - Parent work package ID
+
+The `attachments` stream includes:
+- `author_id`, `author_title` - User who uploaded the file
+- `container_id`, `container_type`, `container_title` - Parent object (WorkPackage, Meeting, etc.)
+- `download_url` - Direct download link
+
+This enables direct JOINs between streams without parsing HAL `_links` objects
 
 ## Usage with Meltano
 

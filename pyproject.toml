@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "tap-openproject"
-version = "0.2.3"
+version = "0.3.0"
 description = "Singer tap for OpenProject API - Built with the Meltano Singer SDK"
 authors = ["surveilr Team <support@surveilr.com>"]
 license = "MIT"

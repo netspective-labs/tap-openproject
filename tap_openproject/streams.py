@@ -165,13 +165,13 @@ class OpenProjectStream(RESTStream):
             self._validate_datetime(start_date)
             filters.append({self.replication_key: {"operator": ">=", "values": [start_date]}})
 
-        # Add project filter if configured and stream supports it
+        # Add project filter if configured and stream supports it (but not for work_packages since API doesn't support it)
         project_ids = self.config.get("project_ids")
-        if project_ids and getattr(self, 'supports_project_filter', False):
-            filters.append({"project": {"operator": "=", "values": [str(pid) for pid in project_ids]}})
+        if project_ids and getattr(self, 'supports_project_filter', False) and self.name != 'work_packages':
+            filters.append({"project": {"operator": "=", "values": project_ids}})
 
         if filters:
-            params["filters"] = json.dumps(filters)
+            params["filter"] = json.dumps(filters)
 
         return params
 
@@ -212,12 +212,16 @@ class OpenProjectStream(RESTStream):
     ) -> Optional[Any]:
         """Get the token for the next page of results.
 
+        OpenProject uses 'offset' as a page number (1-indexed), not an item offset.
+        - offset=1 returns items 1-20 (page 1)
+        - offset=2 returns items 21-40 (page 2)
+
         Args:
             response: The HTTP response object.
             previous_token: The previous pagination token.
 
         Returns:
-            The next pagination token, or None if there are no more pages.
+            The next page number, or None if there are no more pages.
         """
         data = response.json()
 
@@ -225,11 +229,12 @@ class OpenProjectStream(RESTStream):
         if "nextByOffset" in links:
             total = data.get("total", 0)
             page_size = data.get("pageSize", len(data.get("_embedded", {}).get("elements", [])))
-            current_offset = data.get("offset", 0)
-            next_offset = current_offset + page_size
+            current_page = data.get("offset", 1)  # offset is actually page number (1-indexed)
 
-            if next_offset < total:
-                return next_offset
+            # Calculate total pages and check if there's a next page
+            total_pages = (total + page_size - 1) // page_size  # Ceiling division
+            if current_page < total_pages:
+                return current_page + 1
 
         return None
 
@@ -272,15 +277,41 @@ class ProjectsStream(OpenProjectStream):
         th.Property("parent_title", th.StringType, description="Parent project name"),
     ).to_dict()
 
+    def get_url_params(
+        self,
+        context: Optional[dict],
+        next_page_token: Optional[Any],
+    ) -> Dict[str, Any]:
+        """Get URL query parameters with project ID filtering.
+
+        Args:
+            context: Stream context dictionary.
+            next_page_token: Token for the next page of results.
+
+        Returns:
+            Dictionary of URL query parameters.
+        """
+        params = super().get_url_params(context, next_page_token)
+
+        # Add project ID filter if configured (filter by the project's own ID)
+        project_ids = self.config.get("project_ids")
+        if project_ids:
+            # Build filter for project IDs - use "id" field for /projects endpoint
+            existing_filters = json.loads(params.get("filter", "[]"))
+            existing_filters.append({"id": {"operator": "=", "values": project_ids}})
+            params["filter"] = json.dumps(existing_filters)
+
+        return params
+
     def post_process(self, row: dict, context: Optional[dict] = None) -> Optional[dict]:
-        """Extract parent project info from _links for easier querying.
+        """Extract parent project info from _links for easier querying and filter by project_ids if configured.
 
         Args:
             row: Individual record dictionary.
             context: Stream context dictionary.
 
         Returns:
-            Modified record with flattened fields.
+            Modified record with flattened fields, or None if filtered out.
         """
         if "_links" in row and row["_links"]:
             links = row["_links"]
@@ -288,6 +319,16 @@ class ProjectsStream(OpenProjectStream):
         else:
             row["parent_id"] = None
             row["parent_title"] = None
+
+        # Filter by project_ids if configured (ensure integer comparison)
+        project_ids = self.config.get("project_ids")
+        if project_ids:
+            row_id = row.get("id")
+            # Ensure consistent integer comparison
+            project_ids_int = {int(pid) for pid in project_ids}
+            if row_id is None or int(row_id) not in project_ids_int:
+                return None  # Filter out this project
+
         return row
 
 
@@ -346,18 +387,20 @@ class WorkPackagesStream(OpenProjectStream):
     ).to_dict()
 
     def post_process(self, row: dict, context: Optional[dict] = None) -> Optional[dict]:
-        """Extract commonly used fields from _links for easier querying.
+        """Extract commonly used fields from _links for easier querying and filter by project_ids if configured.
 
         Args:
             row: Individual record dictionary.
             context: Stream context dictionary.
 
         Returns:
-            Modified record with flattened fields.
+            Modified record with flattened fields, or None if filtered out.
         """
+        # Flatten _links fields for easier querying
         if "_links" in row and row["_links"]:
             links = row["_links"]
-            # Extract all relevant links with both title and ID
+
+            # Extract type, status, priority with titles and IDs
             row.update(self.flatten_link(links, "type"))
             row.update(self.flatten_link(links, "status"))
             row.update(self.flatten_link(links, "priority"))
@@ -367,6 +410,24 @@ class WorkPackagesStream(OpenProjectStream):
             row.update(self.flatten_link(links, "responsible"))
             row.update(self.flatten_link(links, "version"))
             row.update(self.flatten_link(links, "parent"))
+        else:
+            # Set default None values for flattened fields
+            for field in ["type", "status", "priority", "assignee", "project",
+                          "author", "responsible", "version", "parent"]:
+                row[f"{field}_title"] = None
+                if field != "parent":  # parent only has _id
+                    row[f"{field}_id"] = None
+            row["parent_id"] = None
+
+        # Filter by project_ids if configured (ensure integer comparison)
+        project_ids = self.config.get("project_ids")
+        if project_ids:
+            row_project_id = row.get("project_id")
+            # Ensure consistent integer comparison
+            project_ids_int = {int(pid) for pid in project_ids}
+            if row_project_id is None or int(row_project_id) not in project_ids_int:
+                return None  # Filter out this record
+
         return row
 
     def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
